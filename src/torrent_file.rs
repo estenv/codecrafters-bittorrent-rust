@@ -18,11 +18,18 @@ pub struct Info {
 }
 
 impl Info {
-    pub fn info_hash(&self) -> Vec<u8> {
+    pub fn info_hash(&self) -> String {
         let encoded = serde_bencode::to_bytes(self).unwrap();
         let mut hasher = Sha1::new();
         hasher.update(encoded);
-        hasher.finalize().to_vec()
+        hex::encode(hasher.finalize())
+    }
+
+    pub fn piece_hashes(&self) -> Vec<String> {
+        (0..self.pieces.len())
+            .step_by(20)
+            .map(|offset| hex::encode(&self.pieces[offset..offset + 20]))
+            .collect()
     }
 }
 
@@ -30,7 +37,11 @@ impl Torrent {
     pub fn print(&self) {
         println!("Tracker URL: {}", self.announce);
         println!("Length: {}", self.info.length);
-        let hash = hex::encode(self.info.info_hash());
-        println!("Info Hash: {}", hash);
+        println!("Info Hash: {}", self.info.info_hash());
+        println!("Piece Length: {}", self.info.piece_length);
+        println!("Piece Hashes:");
+        for hash in self.info.piece_hashes() {
+            println!("{hash}");
+        }
     }
 }
