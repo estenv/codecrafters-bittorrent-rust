@@ -1,13 +1,12 @@
-use serde_json::Number;
+use serde_json::{Map, Number};
 use std::env;
 
 #[allow(dead_code)]
 fn decode_bencoded_value(encoded_value: &str) -> Option<(serde_json::Value, &str)> {
     match encoded_value.chars().next().unwrap() {
         c if c.is_ascii_digit() => {
-            let (len, rest) = encoded_value.split_once(':')?;
-            let len = len.parse::<usize>().ok()?;
-            Some((serde_json::Value::String(rest[..len].into()), &rest[len..]))
+            let (value, rest) = decode_to_owned_string(encoded_value)?;
+            Some((serde_json::Value::String(value), rest))
         }
         'i' => {
             let end = encoded_value.find('e')?;
@@ -27,8 +26,25 @@ fn decode_bencoded_value(encoded_value: &str) -> Option<(serde_json::Value, &str
             }
             Some((serde_json::Value::Array(items), &remaining[1..]))
         }
+        'd' => {
+            let mut map: Map<String, serde_json::Value> = Map::new();
+            let mut remaining = &encoded_value[1..];
+            while !remaining.starts_with("e") {
+                let (key, rest) = decode_to_owned_string(remaining)?;
+                let (value, rest) = decode_bencoded_value(rest)?;
+                map.insert(key, value);
+                remaining = rest;
+            }
+            Some((serde_json::Value::Object(map), &remaining[1..]))
+        }
         _ => None,
     }
+}
+
+fn decode_to_owned_string(encoded_string: &str) -> Option<(String, &str)> {
+    let (len, rest) = encoded_string.split_once(':')?;
+    let len = len.parse::<usize>().ok()?;
+    Some((rest[..len].into(), &rest[len..]))
 }
 
 // Usage: your_program.sh decode "<encoded_value>"
