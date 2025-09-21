@@ -1,8 +1,11 @@
 use anyhow::Result;
 use base64::prelude::*;
-use codecrafters_bittorrent::torrent_file::Torrent;
+use codecrafters_bittorrent::{torrent_file::Torrent, tracker::tracker_get};
 use serde_json::{json, Map};
-use std::env;
+use std::{
+    env,
+    net::{Ipv4Addr, SocketAddrV4},
+};
 
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -20,6 +23,21 @@ fn main() -> Result<()> {
             let data = std::fs::read(&args[2])?;
             let torrent: Torrent = serde_bencode::from_bytes(&data)?;
             torrent.print();
+        }
+        "peers" => {
+            let data = std::fs::read(&args[2])?;
+            let torrent: Torrent = serde_bencode::from_bytes(&data)?;
+            let response = tracker_get(torrent)?;
+            if let Some(serde_bencode::value::Value::Bytes(bytes)) = response.get("peers") {
+                bytes
+                    .chunks_exact(6)
+                    .map(|x| {
+                        let ip = Ipv4Addr::new(x[0], x[1], x[2], x[3]);
+                        let port = u16::from_be_bytes([x[4], x[5]]);
+                        SocketAddrV4::new(ip, port)
+                    })
+                    .for_each(|a| println!("{a}"))
+            }
         }
         _ => println!("unknown command: {}", args[1]),
     }
